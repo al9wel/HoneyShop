@@ -1,0 +1,8 @@
+# .coderabbit.yaml - fixed
+reviews:
+  auto_review:
+    enabled: true
+  review_status: true
+  branches:
+    include:
+      - "*"
