@@ -1,21 +1,24 @@
-import express from "express";
-import path from "path"
-import { ENV } from "./lib/env.js";
+import express from "express"
+import mongoose from "mongoose"
+import bodyParser from "body-parser"
+import dotenv from "dotenv"
+import userRoute from "./routes/userRoute.js"
+import categoryRoute from "./routes/categoryRoute.js"
+
 const app = express();
-const __dirname = path.resolve()
+app.use(bodyParser.json());
 
-app.get("/test", (req, res) => {
-    res.status(200).json({ msg: "test" })
-})
+dotenv.config();
 
+const PORT = process.env.PORT || 5000;
+const MONGOURL = process.env.MONGO_URL;
 
-// make the app ready for deployment
-if (ENV.NODE_ENV === "production") {
-    app.use(express.static(path.join(__dirname, "../client/dist")))
-    app.get("/{*any}", (req, res) => {
-        res.sendFile(path.join(__dirname, "../client", "dist", "index.html"))
+mongoose.connect(MONGOURL).then(() => {
+    console.log("Database connected Successfully.")
+    app.listen(PORT, () => {
+        console.log(`Server is running on port : ${PORT}`)
     })
-}
+}).catch(error => console.log(error));
 
-
-app.listen(ENV.PORT, () => console.log("server is running in port : ", ENV.PORT))
+app.use("/api/user", userRoute)
+app.use("/api/category", categoryRoute)
