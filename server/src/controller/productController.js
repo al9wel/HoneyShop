@@ -11,7 +11,21 @@ export const create = async (req, res) => {
         if (existing) {
             return res.status(400).json({ message: "Product already exists." });
         }
-        const newProduct = new Product(req.body);
+        // handle uploaded images (field name: 'images')
+        let imagesArr = [];
+        if (req.files && req.files.length) {
+            imagesArr = req.files.map(f => `/uploads/${f.filename}`);
+        } else if (req.body.images) {
+            try {
+                imagesArr = typeof req.body.images === 'string' ? JSON.parse(req.body.images) : req.body.images;
+            } catch (e) {
+                // if not JSON, allow comma separated
+                imagesArr = String(req.body.images).split(',').map(s => s.trim()).filter(Boolean);
+            }
+        }
+
+        const productData = { ...req.body, images: imagesArr };
+        const newProduct = new Product(productData);
         const saved = await newProduct.save();
         res.status(201).json(saved);
     } catch (error) {
@@ -60,7 +74,18 @@ export const update = async (req, res) => {
         if (!exist) {
             return res.status(404).json({ message: "Product not found." });
         }
-        const updated = await Product.findByIdAndUpdate(id, req.body, { new: true });
+        // If images uploaded, use them (overwrite); otherwise honor body.images
+        let imagesArr;
+        if (req.files && req.files.length) imagesArr = req.files.map(f => `/uploads/${f.filename}`);
+        else if (req.body.images) {
+            try { imagesArr = typeof req.body.images === 'string' ? JSON.parse(req.body.images) : req.body.images; }
+            catch { imagesArr = String(req.body.images).split(',').map(s => s.trim()).filter(Boolean); }
+        }
+
+        const updateData = { ...req.body };
+        if (imagesArr) updateData.images = imagesArr;
+
+        const updated = await Product.findByIdAndUpdate(id, updateData, { new: true });
         res.status(201).json(updated);
     } catch (error) {
         console.error(error);
