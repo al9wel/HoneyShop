@@ -1,18 +1,36 @@
 import React, { useEffect, useState } from 'react';
-import { CategoryAPI, BASE } from '../api';
+
+// Simple base URL for the API server. Update if your server runs on another host/port.
+const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+
+// Category type used by this component
+interface Category {
+    _id: string;
+    name: string;
+    image?: string | null;
+}
 
 const CategoryPanel: React.FC = () => {
-    const [categories, setCategories] = useState<any[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [name, setName] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
 
+    // Load categories from the server
     const load = async () => {
-        const res: any = await CategoryAPI.list();
-        if (Array.isArray(res)) setCategories(res);
+        try {
+            const res = await fetch(`${BASE}/api/category/all`);
+            const data = await res.json();
+            if (Array.isArray(data)) setCategories(data);
+        } catch (err) { console.error(err); }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const t = setTimeout(() => {
+            load();
+        }, 0);
+        return () => clearTimeout(t);
+    }, []);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -20,14 +38,23 @@ const CategoryPanel: React.FC = () => {
         form.append('name', name);
         if (imageFile) form.append('image', imageFile);
         try {
-            if (editingId) await CategoryAPI.update(editingId, form);
-            else await CategoryAPI.create(form);
+            if (editingId) {
+                await fetch(`${BASE}/api/category/update/${editingId}`, { method: 'PUT', body: form });
+            } else {
+                await fetch(`${BASE}/api/category/create`, { method: 'POST', body: form });
+            }
             setName(''); setImageFile(null); setEditingId(null); load();
-        } catch (err) { alert('حدث خطأ'); }
+        } catch (err) { console.error(err); alert('حدث خطأ'); }
     };
 
-    const edit = (cat: any) => { setEditingId(cat._id); setName(cat.name); };
-    const remove = async (id: string) => { if (!confirm('هل أنت متأكد؟')) return; await CategoryAPI.delete(id); load(); };
+    const edit = (cat: Category) => { setEditingId(cat._id); setName(cat.name); };
+    const remove = async (id: string) => {
+        if (!confirm('هل أنت متأكد؟')) return;
+        try {
+            await fetch(`${BASE}/api/category/delete/${id}`, { method: 'DELETE' });
+            load();
+        } catch (err) { console.error(err); }
+    };
 
     return (
         <div className="panel">

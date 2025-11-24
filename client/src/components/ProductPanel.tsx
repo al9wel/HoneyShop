@@ -1,28 +1,69 @@
 import React, { useEffect, useState } from 'react';
-import { ProductAPI, CategoryAPI, BASE } from '../api';
+
+const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
 const ProductPanel: React.FC = () => {
-    const [products, setProducts] = useState<any[]>([]);
-    const [categories, setCategories] = useState<any[]>([]);
+    interface Product {
+        _id: string;
+        name: string;
+        price: number;
+        description?: string;
+        category?: {
+            _id: string;
+            name: string;
+        };
+        size?: number;
+        // images may come from server as an array or as a single string
+        images?: string[] | string;
+        // newer server version stores a single image path in `image`
+        image?: string;
+    }
 
-    const [form, setForm] = useState<any>({ name: '', price: '', description: '', category: '', size: '' });
+    interface Category {
+        _id: string;
+        name: string;
+    }
+
+    const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+
+    interface ProductForm {
+        name: string;
+        price: string;
+        description: string;
+        category: string;
+        size: string;
+    }
+    const [form, setForm] = useState<ProductForm>({ name: '', price: '', description: '', category: '', size: '' });
     const [images, setImages] = useState<FileList | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
 
+    // Load products and categories from server
     const load = async () => {
-        const p: any = await ProductAPI.list();
-        if (Array.isArray(p)) setProducts(p);
-        const c: any = await CategoryAPI.list();
-        if (Array.isArray(c)) setCategories(c);
+        try {
+            const pRes = await fetch(`${BASE}/api/product/all`);
+            const pData = await pRes.json();
+            console.log('Loaded categories:', pData);
+            if (Array.isArray(pData)) setProducts(pData);
+        } catch (err) { console.error('load products', err); }
+        try {
+            const cRes = await fetch(`${BASE}/api/category/all`);
+            const cData = await cRes.json();
+            if (Array.isArray(cData)) setCategories(cData);
+        } catch (err) { console.error('load categories', err); }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const t = setTimeout(() => {
+            load();
+        }, 0);
+        return () => clearTimeout(t);
+    }, []);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // use FormData when files present
-            let payload: any = form;
+            // If there are files, send as FormData; otherwise send JSON
             if (images && images.length) {
                 const fd = new FormData();
                 fd.append('name', form.name);
@@ -31,16 +72,23 @@ const ProductPanel: React.FC = () => {
                 fd.append('category', form.category);
                 fd.append('size', String(form.size));
                 Array.from(images).forEach(f => fd.append('images', f));
-                payload = fd;
+                if (editingId) await fetch(`${BASE}/api/product/update/${editingId}`, { method: 'PUT', body: fd });
+                else await fetch(`${BASE}/api/product/create`, { method: 'POST', body: fd });
+            } else {
+                const body = { ...form };
+                if (editingId) await fetch(`${BASE}/api/product/update/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                else await fetch(`${BASE}/api/product/create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             }
-            if (editingId) await ProductAPI.update(editingId, payload);
-            else await ProductAPI.create(payload);
             setForm({ name: '', price: '', description: '', category: '', size: '' }); setImages(null); setEditingId(null); load();
-        } catch (err) { alert('حدث خطأ'); }
+        } catch (err) { console.error(err); alert('حدث خطأ'); }
     };
 
-    const edit = (p: any) => { setEditingId(p._id); setForm({ name: p.name, price: p.price, description: p.description || '', category: p.category?._id || '', size: p.size || '' }); }
-    const remove = async (id: string) => { if (!confirm('هل أنت متأكد؟')) return; await ProductAPI.delete(id); load(); }
+    const edit = (p: Product) => { setEditingId(p._id); setForm({ name: p.name, price: String(p.price), description: p.description || '', category: p.category?._id || '', size: p.size ? String(p.size) : '' }); }
+    const remove = async (id: string) => {
+        if (!confirm('هل أنت متأكد؟')) return;
+        try { await fetch(`${BASE}/api/product/delete/${id}`, { method: 'DELETE' }); load(); }
+        catch (err) { console.error(err); }
+    }
 
     return (
         <div className="panel">
@@ -67,8 +115,9 @@ const ProductPanel: React.FC = () => {
 
             <ul className="list">
                 {products.map(p => {
-                    const first = p.images && p.images.length ? p.images[0] : null;
-                    const img = first ? (first.startsWith('http') ? first : `${BASE}${first}`) : `${BASE}/uploads/placeholder.png`;
+                    // Normalize image from server: prefer `p.image` (single string), then `p.images` if present
+                    const first = p.image || (Array.isArray(p.images) ? (p.images.length ? p.images[0] : null) : (typeof p.images === 'string' ? p.images : null));
+                    const img = first ? (String(first).startsWith('http') ? String(first) : `${BASE}${String(first)}`) : `${BASE}/uploads/placeholder.png`;
                     return (
                         <li key={p._id}>
                             <div className="item">

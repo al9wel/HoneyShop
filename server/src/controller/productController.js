@@ -11,7 +11,7 @@ export const create = async (req, res) => {
         if (existing) {
             return res.status(400).json({ message: "Product already exists." });
         }
-        // handle uploaded images (field name: 'images')
+        // handle uploaded image(s) (field name: 'images'). We store a single `image` string on product.
         let imagesArr = [];
         if (req.files && req.files.length) {
             imagesArr = req.files.map(f => `/uploads/${f.filename}`);
@@ -24,7 +24,10 @@ export const create = async (req, res) => {
             }
         }
 
-        const productData = { ...req.body, images: imagesArr };
+        // Use the first image if available, otherwise accept `req.body.image` (single string)
+        const firstImage = imagesArr.length ? imagesArr[0] : (req.body.image || null);
+
+        const productData = { ...req.body, image: firstImage };
         const newProduct = new Product(productData);
         const saved = await newProduct.save();
         res.status(201).json(saved);
@@ -74,7 +77,7 @@ export const update = async (req, res) => {
         if (!exist) {
             return res.status(404).json({ message: "Product not found." });
         }
-        // If images uploaded, use them (overwrite); otherwise honor body.images
+        // If images uploaded, use the first uploaded file as the product.image; otherwise honor body.image
         let imagesArr;
         if (req.files && req.files.length) imagesArr = req.files.map(f => `/uploads/${f.filename}`);
         else if (req.body.images) {
@@ -83,7 +86,8 @@ export const update = async (req, res) => {
         }
 
         const updateData = { ...req.body };
-        if (imagesArr) updateData.images = imagesArr;
+        if (imagesArr && imagesArr.length) updateData.image = imagesArr[0];
+        else if (req.body.image) updateData.image = req.body.image;
 
         const updated = await Product.findByIdAndUpdate(id, updateData, { new: true });
         res.status(201).json(updated);

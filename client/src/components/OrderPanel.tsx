@@ -1,22 +1,49 @@
 import React, { useEffect, useState } from 'react';
-import { OrderAPI } from '../api';
+
+const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+
+type User = { name?: string } | string;
+
+type Order = {
+    _id: string;
+    user?: User;
+    totalAmount: number;
+    status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | string;
+};
 
 const OrderPanel: React.FC = () => {
-    const [orders, setOrders] = useState<any[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
 
+    // Load orders from server
     const load = async () => {
-        const o: any = await OrderAPI.list(); if (Array.isArray(o)) setOrders(o);
+        try {
+            const res = await fetch(`${BASE}/api/order/all`);
+            const data = await res.json();
+            if (Array.isArray(data)) setOrders(data);
+            console.log(data)
+        } catch (err) { console.error(err); }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const t = setTimeout(() => {
+            load();
+        }, 0);
+        return () => clearTimeout(t);
+    }, []);
 
-    const remove = async (id: string) => { if (!confirm('هل أنت متأكد؟')) return; await OrderAPI.delete(id); load(); }
+    // Delete order
+    const remove = async (id: string) => {
+        if (!confirm('هل أنت متأكد؟')) return;
+        try { await fetch(`${BASE}/api/order/delete/${id}`, { method: 'DELETE' }); load(); }
+        catch (err) { console.error(err); }
+    }
 
+    // Update order status
     const changeStatus = async (id: string, status: string) => {
         try {
-            await OrderAPI.update(id, { status });
+            await fetch(`${BASE}/api/order/update/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
             load();
-        } catch { alert('حدث خطأ أثناء تحديث الحالة'); }
+        } catch (err) { console.error(err); alert('حدث خطأ أثناء تحديث الحالة'); }
     }
 
     return (
@@ -29,7 +56,7 @@ const OrderPanel: React.FC = () => {
                         <div className="item">
                             <div className="meta">
                                 <strong>طلب: {o._id}</strong>
-                                <div>المستخدم: {o.user?.name || o.user}</div>
+                                <div>المستخدم: {typeof o.user === 'string' ? o.user : o.user?.name}</div>
                                 <div>المبلغ الإجمالي: {o.totalAmount}</div>
                                 <div>
                                     الحالة:
