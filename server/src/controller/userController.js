@@ -14,10 +14,10 @@ export const register = async (req, res) => {
         }
         const newUser = new User(req.body);
         const savedUser = await newUser.save();
-        res.status(201).json(savedUser);
+        return res.status(201).json(savedUser);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Internal Server Error." });
+        return res.status(500).json({ error: "Internal Server Error." });
     }
 };
 // for checking if user exist 
@@ -29,11 +29,11 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: "Wrong email" })
         }
         if (user.password === req.body.password) {
-            res.status(200).json({ user })
+            return res.status(200).json({ user })
         }
-        res.status(400).json({ message: "Wrong password" })
+        return res.status(400).json({ message: "Wrong password" })
     } catch (error) {
-        res.status(500).json({ error: "Error. " })
+        return res.status(500).json({ error: "Error. " })
     }
 }
 // For getting all users from database 
